@@ -1,0 +1,459 @@
+// Garage SaaS — schéma multi-tenant (garageId sur chaque table métier)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  MECHANIC
+}
+
+enum VehicleType {
+  CAR
+  MOTORCYCLE
+}
+
+enum RepairStatus {
+  RECEIVED
+  DIAGNOSED
+  IN_PROGRESS
+  WAITING_PARTS
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum DocumentStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REFUSED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PlanTier {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+}
+
+enum InviteType {
+  STAFF
+  CLIENT
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+  EXPIRED
+  REFUNDED
+}
+
+// Opérateur mobile money choisi par l'utilisateur — la disponibilité réelle
+// par pays doit être confirmée auprès de l'agrégateur retenu avant mise en
+// production (voir lib/payments/countries.ts).
+enum PaymentChannel {
+  ORANGE_MONEY
+  MTN_MOMO
+  MOOV_MONEY
+  WAVE
+  FREE_MONEY
+  AIRTEL_MONEY
+  MPESA
+  CARD // paiement carte bancaire via Stripe
+}
+
+// Agrégateur/prestataire technique effectivement intégré. MOCK tant qu'aucun
+// vrai compte marchand n'est configuré (voir lib/payments/providers/*.ts).
+enum PaymentProviderName {
+  MOCK
+  STRIPE
+  CINETPAY
+  PAYDUNYA
+  FLUTTERWAVE
+}
+
+model Garage {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  email     String?
+  siret     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  settings      GarageSettings?
+  subscription  Subscription?
+  users         User[]
+  clients       Client[]
+  vehicles      Vehicle[]
+  repairOrders  RepairOrder[]
+  inventoryItems InventoryItem[]
+  quotes        Quote[]
+  invoices      Invoice[]
+  inviteTokens  InviteToken[]
+  paymentTransactions PaymentTransaction[]
+
+  @@index([name])
+}
+
+model GarageSettings {
+  id                String  @id @default(cuid())
+  garageId          String  @unique
+  garage            Garage  @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  hourlyLaborRate   Decimal @default(60.00) @db.Decimal(10, 2)
+  taxRatePercent    Decimal @default(20.00) @db.Decimal(5, 2)
+  currency          String  @default("EUR")
+  invoicePrefix     String  @default("FAC-")
+  quotePrefix       String  @default("DEV-")
+  nextInvoiceNumber Int     @default(1)
+  nextQuoteNumber   Int     @default(1)
+  logoUrl           String?
+}
+
+model User {
+  id           String   @id @default(cuid())
+  garageId     String
+  garage       Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role     @default(MECHANIC)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  assignedRepairOrders RepairOrder[] @relation("AssignedMechanic")
+
+  @@index([garageId])
+}
+
+// Invitations pour employés (STAFF, cible un email + rôle) et clients (CLIENT, cible une fiche Client existante)
+model InviteToken {
+  id           String     @id @default(cuid())
+  garageId     String
+  garage       Garage     @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  type         InviteType
+  tokenHash    String     @unique
+  targetEmail  String
+  role         Role?      // renseigné pour les invitations STAFF
+  clientId     String?    // renseigné pour les invitations CLIENT
+  client       Client?    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([garageId])
+  @@index([targetEmail])
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  garageId  String
+  garage    Garage    @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String
+  address   String?
+  phone     String?
+  email     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  vehicles     Vehicle[]
+  quotes       Quote[]
+  invoices     Invoice[]
+  inviteTokens InviteToken[]
+  portalAccount ClientPortalAccount?
+
+  @@index([garageId])
+  @@index([garageId, lastName])
+}
+
+model ClientPortalAccount {
+  id           String   @id @default(cuid())
+  clientId     String   @unique
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model Vehicle {
+  id          String      @id @default(cuid())
+  garageId    String
+  garage      Garage      @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type        VehicleType @default(CAR)
+  make        String
+  model       String
+  plateNumber String
+  vin         String?
+  year        Int?
+  mileage     Int?
+  createdAt   DateTime    @default(now())
+
+  repairOrders RepairOrder[]
+
+  @@index([garageId])
+  @@index([garageId, plateNumber])
+}
+
+model RepairOrder {
+  id                   String       @id @default(cuid())
+  garageId             String
+  garage               Garage       @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  vehicleId            String
+  vehicle              Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  title                String
+  description          String?
+  status               RepairStatus @default(RECEIVED)
+  appointmentDate      DateTime?
+  completionDate       DateTime?
+  estimatedDurationMin Int?
+  warrantyMonths       Int?
+  assignedUserId       String?
+  assignedUser         User?        @relation("AssignedMechanic", fields: [assignedUserId], references: [id])
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  partsUsed RepairPartUsage[]
+  photos    RepairPhoto[]
+  quote     Quote?
+  invoice   Invoice?
+
+  @@index([garageId])
+  @@index([garageId, status])
+}
+
+model RepairPhoto {
+  id            String      @id @default(cuid())
+  garageId      String
+  repairOrderId String
+  repairOrder   RepairOrder @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
+  filePath      String
+  caption       String?
+  uploadedAt    DateTime    @default(now())
+
+  @@index([repairOrderId])
+}
+
+model InventoryItem {
+  id                String   @id @default(cuid())
+  garageId          String
+  garage            Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  name              String
+  reference         String?
+  unitPrice         Decimal  @db.Decimal(10, 2)
+  quantityInStock   Int      @default(0)
+  lowStockThreshold Int      @default(3)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  repairPartUsages RepairPartUsage[]
+  quoteLineItems   QuoteLineItem[]
+  invoiceLineItems InvoiceLineItem[]
+
+  @@index([garageId])
+  @@index([garageId, name])
+}
+
+model RepairPartUsage {
+  id              String        @id @default(cuid())
+  repairOrderId   String
+  repairOrder     RepairOrder   @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantity        Int
+  unitPriceAtUse  Decimal       @db.Decimal(10, 2)
+  createdAt       DateTime      @default(now())
+
+  @@index([repairOrderId])
+}
+
+model Quote {
+  id                String         @id @default(cuid())
+  garageId          String
+  garage            Garage         @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  number            String
+  clientId          String
+  client            Client         @relation(fields: [clientId], references: [id])
+  repairOrderId     String?        @unique
+  repairOrder       RepairOrder?   @relation(fields: [repairOrderId], references: [id])
+  status            DocumentStatus @default(DRAFT)
+  laborHours        Decimal        @default(0) @db.Decimal(6, 2)
+  laborRateSnapshot Decimal        @db.Decimal(10, 2)
+  subtotal          Decimal        @db.Decimal(10, 2)
+  taxRateSnapshot   Decimal        @db.Decimal(5, 2)
+  taxAmount         Decimal        @db.Decimal(10, 2)
+  total             Decimal        @db.Decimal(10, 2)
+  validUntil        DateTime?
+  createdAt         DateTime       @default(now())
+
+  lineItems QuoteLineItem[]
+  invoice   Invoice? @relation("QuoteToInvoice")
+
+  @@unique([garageId, number])
+  @@index([garageId])
+}
+
+model QuoteLineItem {
+  id              String         @id @default(cuid())
+  quoteId         String
+  quote           Quote          @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  description     String
+  quantity        Int            @default(1)
+  unitPrice       Decimal        @db.Decimal(10, 2)
+  lineTotal       Decimal        @db.Decimal(10, 2)
+}
+
+model Invoice {
+  id                String         @id @default(cuid())
+  garageId          String
+  garage            Garage         @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  number            String
+  clientId          String
+  client            Client         @relation(fields: [clientId], references: [id])
+  repairOrderId     String?        @unique
+  repairOrder       RepairOrder?   @relation(fields: [repairOrderId], references: [id])
+  sourceQuoteId     String?        @unique
+  sourceQuote       Quote?         @relation("QuoteToInvoice", fields: [sourceQuoteId], references: [id])
+  status            DocumentStatus @default(DRAFT)
+  laborHours        Decimal        @default(0) @db.Decimal(6, 2)
+  laborRateSnapshot Decimal        @db.Decimal(10, 2)
+  subtotal          Decimal        @db.Decimal(10, 2)
+  taxRateSnapshot   Decimal        @db.Decimal(5, 2)
+  taxAmount         Decimal        @db.Decimal(10, 2)
+  total             Decimal        @db.Decimal(10, 2)
+  dueDate           DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime       @default(now())
+
+  lineItems InvoiceLineItem[]
+
+  @@unique([garageId, number])
+  @@index([garageId])
+}
+
+model InvoiceLineItem {
+  id              String         @id @default(cuid())
+  invoiceId       String
+  invoice         Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  description     String
+  quantity        Int            @default(1)
+  unitPrice       Decimal        @db.Decimal(10, 2)
+  lineTotal       Decimal        @db.Decimal(10, 2)
+}
+
+// Une tentative de paiement mobile money (une par tentative — un même achat
+// relancé après échec crée une nouvelle ligne, jamais une réécriture de
+// l'ancienne, pour garder un historique complet et auditable).
+model PaymentTransaction {
+  id                String              @id @default(cuid())
+  garageId          String
+  garage            Garage              @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  reference         String              @unique // notre identifiant interne, généré avant tout appel au prestataire (clé d'idempotence)
+  provider          PaymentProviderName @default(MOCK)
+  channel           PaymentChannel
+  countryCode       String? // ISO 3166-1 alpha-2, ex "SN" — non applicable pour un paiement par carte
+  currency          String // ISO 4217, ex "XOF"
+  amount            Decimal             @db.Decimal(14, 2)
+  phoneNumber       String? // non applicable pour un paiement par carte (Stripe)
+  status            PaymentStatus       @default(PENDING)
+  planTier          PlanTier? // formule visée si c'est un paiement d'abonnement
+  externalReference String? // identifiant renvoyé par le prestataire, une fois connu
+  failureReason     String?
+  initiatedAt       DateTime            @default(now())
+  confirmedAt       DateTime?
+  updatedAt         DateTime            @updatedAt
+
+  webhookEvents PaymentWebhookEvent[]
+
+  @@index([garageId])
+  @@index([garageId, status])
+  @@index([externalReference])
+}
+
+// Journal brut de chaque notification reçue d'un prestataire — sert à la
+// fois d'audit trail et de protection anti-rejeu (un même eventId ne doit
+// jamais être traité deux fois).
+model PaymentWebhookEvent {
+  id             String              @id @default(cuid())
+  transactionId  String?
+  transaction    PaymentTransaction? @relation(fields: [transactionId], references: [id])
+  provider       PaymentProviderName
+  eventId        String // identifiant d'événement fourni par le prestataire
+  signatureValid Boolean
+  rawPayload     Json
+  processedAt    DateTime            @default(now())
+
+  @@unique([provider, eventId])
+  @@index([transactionId])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  garageId             String             @unique
+  garage               Garage             @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  plan                 PlanTier           @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+}
+
+enum ContactCategory {
+  TECHNICAL
+  ACCOUNT
+  SUBSCRIPTION
+  PAYMENT
+  BILLING
+  SUGGESTION
+  OTHER
+}
+
+// Message envoyé via la page /contact — s'adresse à l'éditeur de Garage Pro
+// (le logiciel), pas à un garage-tenant précis : volontairement sans
+// garageId. Aucun envoi d'e-mail automatique n'est configuré à ce jour ; ces
+// messages sont uniquement enregistrés ici (voir lib/actions/contact.ts).
+model ContactMessage {
+  id        String           @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  category  ContactCategory
+  message   String
+  createdAt DateTime         @default(now())
+
+  @@index([createdAt])
+}

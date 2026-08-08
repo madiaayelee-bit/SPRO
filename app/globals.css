@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Palette "fiche d'intervention" — voir plan de design (marketing uniquement, fixe) */
+  --color-ink-value: #232220;
+  --color-paper-value: #f3eee3;
+  --color-steel-value: #3f4245;
+  --color-brass-value: #b5652d;
+  --color-chalk-value: #3e5c76;
+
+  /* Thème applicatif — jetons sémantiques (mode clair) */
+  --color-background-value: #fafaf9;
+  --color-foreground-value: #1c1917;
+  --color-card-value: #ffffff;
+  --color-card-foreground-value: #1c1917;
+  --color-border-value: #e7e5e4;
+  --color-input-value: #d6d3d1;
+  --color-ring-value: #ea580c;
+  --color-primary-value: #c2410c;
+  --color-primary-foreground-value: #ffffff;
+  --color-muted-value: #f5f5f4;
+  --color-muted-foreground-value: #57534e;
+  --color-success-value: #ecfdf5;
+  --color-success-foreground-value: #047857;
+  --color-warning-value: #fffbeb;
+  --color-warning-foreground-value: #b45309;
+  --color-danger-value: #fef2f2;
+  --color-danger-foreground-value: #b91c1c;
+  --color-info-value: #eff6ff;
+  --color-info-foreground-value: #1d4ed8;
+}
+
+.dark {
+  --color-background-value: #171412;
+  --color-foreground-value: #f2ede6;
+  --color-card-value: #201c18;
+  --color-card-foreground-value: #f2ede6;
+  --color-border-value: #35302c;
+  --color-input-value: #3f3934;
+  --color-ring-value: #f97316;
+  --color-primary-value: #fb923c;
+  --color-primary-foreground-value: #1c1917;
+  --color-muted-value: #262220;
+  --color-muted-foreground-value: #a8a29e;
+  --color-success-value: #0d2b22;
+  --color-success-foreground-value: #6ee7b7;
+  --color-warning-value: #2b1d06;
+  --color-warning-foreground-value: #fbbf24;
+  --color-danger-value: #2c0f0f;
+  --color-danger-foreground-value: #fca5a5;
+  --color-info-value: #0d1b2e;
+  --color-info-foreground-value: #93c5fd;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
+
+  --color-ink: var(--color-ink-value);
+  --color-paper: var(--color-paper-value);
+  --color-steel: var(--color-steel-value);
+  --color-brass: var(--color-brass-value);
+  --color-chalk: var(--color-chalk-value);
+
+  /* Jetons sémantiques applicatifs — clair/sombre définis ci-dessus */
+  --color-background: var(--color-background-value);
+  --color-foreground: var(--color-foreground-value);
+  --color-card: var(--color-card-value);
+  --color-card-foreground: var(--color-card-foreground-value);
+  --color-border: var(--color-border-value);
+  --color-input: var(--color-input-value);
+  --color-ring: var(--color-ring-value);
+  --color-primary: var(--color-primary-value);
+  --color-primary-foreground: var(--color-primary-foreground-value);
+  --color-muted: var(--color-muted-value);
+  --color-muted-foreground: var(--color-muted-foreground-value);
+  --color-success: var(--color-success-value);
+  --color-success-foreground: var(--color-success-foreground-value);
+  --color-warning: var(--color-warning-value);
+  --color-warning-foreground: var(--color-warning-foreground-value);
+  --color-danger: var(--color-danger-value);
+  --color-danger-foreground: var(--color-danger-foreground-value);
+  --color-info: var(--color-info-value);
+  --color-info-foreground: var(--color-info-foreground-value);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  transition: background-color 150ms ease, color 150ms ease;
+}
