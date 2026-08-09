@@ -17,9 +17,9 @@ describe("mapPayDunyaStatus", () => {
     expect(mapPayDunyaStatus("fail")).toBe("FAILED");
   });
 
-  it("does not match the British spelling or 'failed' — PayDunya does not send these", () => {
-    expect(mapPayDunyaStatus("cancelled")).toBe("FAILED"); // faux positif si jamais réintroduit par erreur
-    expect(mapPayDunyaStatus("failed")).toBe("FAILED"); // coïncidence : tombe déjà sur le défaut
+  it("accepts alternate cancelled/failed spellings for compatibility", () => {
+    expect(mapPayDunyaStatus("cancelled")).toBe("CANCELLED");
+    expect(mapPayDunyaStatus("failed")).toBe("FAILED");
   });
 
   it("defaults unknown or missing statuses to FAILED rather than trusting an unrecognized value", () => {

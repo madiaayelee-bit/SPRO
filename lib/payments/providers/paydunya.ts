@@ -42,14 +42,16 @@ import { isPayDunyaConfigured, getPayDunyaConfig } from "../config";
 export const PAYDUNYA_SUPPORTED_COUNTRIES = new Set(["SN", "CI", "BJ", "BF", "TG", "ML"]);
 export const PAYDUNYA_CURRENCY = "XOF";
 
-// Valeurs confirmées dans le SDK officiel PayDunya (orthographe américaine
-// "canceled" à un seul "l", "fail" et non "failed") — voir le commentaire
-// d'en-tête du fichier pour les sources.
+// Compatibilite PayDunya : accepter les variantes de statut documentees ou observees.
+// Annulation : "canceled" ou "cancelled". Echec : "fail" ou "failed".
+// Les statuts inconnus restent traites comme FAILED.
 const PAYDUNYA_STATUS_MAP: Record<string, WebhookVerificationResult["status"]> = {
   completed: "SUCCESS",
   pending: "PENDING",
   canceled: "CANCELLED",
+  cancelled: "CANCELLED",
   fail: "FAILED",
+  failed: "FAILED",
 };
 
 /** Pure — testable sans réseau ni configuration. */
